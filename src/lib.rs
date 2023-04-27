@@ -1,55 +1,95 @@
-use std::{io, time::Duration, error::Error};
+use std::{
+    error::Error,
+    io,
+    sync::mpsc,
+    thread::{self},
+    time::{Duration, Instant},
+};
 
 use app::App;
-use argh::FromArgs;
 use crossterm::{
-    event::EnableMouseCapture,
+    event::{self, EnableMouseCapture, Event as CEvent, KeyCode, KeyEvent},
     execute,
-    terminal::{enable_raw_mode, EnterAlternateScreen},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen},
 };
+use reqwest::Client;
 use tui::{
-    backend::{CrosstermBackend, Backend},
-    widgets::{Block, Borders},
+    backend::{Backend, CrosstermBackend},
     Terminal,
 };
 
 pub mod app;
+pub mod ui;
 
 pub const SERVER_URL: &str = "http://localhost:8080/api/";
 
-/// Demo
-#[derive(Debug, FromArgs)]
-
-
-
 struct Cli {
-    /// time in ms between two ticks.
-    #[argh(option, default = "250")]
     tick_rate: u64,
-    /// whether unicode symbols are used to improve the overall look of the app
-    #[argh(option, default = "true")]
     enhanced_graphics: bool,
 }
 
-pub fn init_ui() -> Result<(), Box<dyn std::error::Error>> {
-    let cli: Cli = argh::from_env();
-    let tick_rate = Duration::from_millis(cli.tick_rate);
+#[derive(Debug, Clone, Copy)]
+enum Event<I> {
+    Input(I),
+    Tick,
+}
 
-    run(tick_rate, enhanced_graphics)
+pub fn init_ui(client: Client, username: String) -> Result<(), Box<dyn std::error::Error>> {
+    let cli: Cli = Cli {
+        tick_rate: 250,
+        enhanced_graphics: true,
+    };
+    let tick_rate = Duration::from_millis(cli.tick_rate);
+    let enhanced_graphics = cli.enhanced_graphics;
+
+    run(tick_rate, enhanced_graphics, client, username)?;
 
     Ok(())
 }
 
-pub fn run(tick_rate: Duration, enhanced_graphics: bool) -> Result<(), Box<dyn Error>> {
-    // setup terminalenable_raw_mode()?;
+pub fn run(
+    tick_rate: Duration,
+    enhanced_graphics: bool,
+    client: Client,
+    username: String,
+) -> Result<(), Box<dyn Error>> {
+    enable_raw_mode()?;
+
+    let (tx, rx) = mpsc::channel();
+
+    thread::spawn(move || {
+        let mut last_tick = Instant::now();
+        loop {
+            let timeout = tick_rate
+                .checked_sub(last_tick.elapsed())
+                .unwrap_or_else(|| Duration::from_secs(0));
+
+            if event::poll(timeout).expect("poll works") {
+                if let CEvent::Key(key) = event::read().expect("can read events") {
+                    tx.send(Event::Input(key)).expect("can send events");
+                }
+            }
+
+            if last_tick.elapsed() >= tick_rate {
+                if let Ok(_) = tx.send(Event::Tick) {
+                    last_tick = Instant::now();
+                }
+            }
+        }
+    });
+
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
+    terminal.clear()?;
 
-    // create app and run it
-    let app = App::new("Termion demo", enhanced_graphics);
-    run_app(&mut terminal, app, tick_rate)?;
+    let app = App::new(
+        "KickMyB Exploit | Signed In as: ".to_owned() + &username,
+        enhanced_graphics,
+        client,
+    );
+    run_app(&mut terminal, app, rx)?;
 
     Ok(())
 }
@@ -57,49 +97,35 @@ pub fn run(tick_rate: Duration, enhanced_graphics: bool) -> Result<(), Box<dyn E
 fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
     mut app: App,
-    tick_rate: Duration,
+    rx: mpsc::Receiver<Event<KeyEvent>>,
 ) -> Result<(), Box<dyn Error>> {
-    let events = events(tick_rate);
     loop {
-        terminal.draw(|f| {
-            let size = f.size();
-            let block = Block::default().title("KickMyB Exploit").borders(Borders::ALL);
-            f.render_widget(block, size);
-        })?;
+        terminal.draw(|f| ui::draw(f, &mut app))?;
 
-        if crossterm::event::poll(tick_rate)? {
-            if let crossterm::event::Event::Key(key) = crossterm::event::read()? {
-                events
+        match rx.recv()? {
+            Event::Input(event) => {
+                if event.kind != event::KeyEventKind::Press {
+                    continue;
+                }
+                match event.code {
+                    KeyCode::Char(c) => app.on_key(c),
+                    KeyCode::Esc => app.on_esc(),
+                    KeyCode::Up => app.on_up(),
+                    KeyCode::Down => app.on_down(),
+                    KeyCode::Left => app.on_left(),
+                    KeyCode::Right => app.on_right(),
+                    _ => {}
+                }
             }
+            Event::Tick => app.on_tick(),
         }
-
-        std::thread::sleep(tick_rate);
+        if app.should_quit {
+            disable_raw_mode()?;
+            terminal.clear()?;
+            terminal.show_cursor()?;
+            break;
+        }
     }
 
     Ok(())
 }
-
-enum Event {
-    Input(Key),
-    Tick,
-}
-
-fn events(tick_rate: Duration) -> impl Iterator<Item = Event> {
-    let tick_rate = tick_rate;
-    let tick = std::thread::spawn(move || loop {
-        std::thread::sleep(tick_rate);
-        tick
-    });
-
-    let input = std::thread::spawn(move || loop {
-        if crossterm::event::poll(tick_rate).unwrap() {
-            if let crossterm::event::Event::Key(key) = crossterm::event::read().unwrap() {
-                input
-            }
-        }
-    });
-
-    tick.merge(input)
-}
-
-
