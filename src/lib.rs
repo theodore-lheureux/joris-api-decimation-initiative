@@ -20,6 +20,7 @@ use tui::{
 
 pub mod app;
 pub mod ui;
+pub mod tasks_loader;
 
 pub const SERVER_URL: &str = "http://localhost:8080/api/";
 
@@ -34,7 +35,7 @@ enum Event<I> {
     Tick,
 }
 
-pub fn init_ui(client: Client, username: String) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn init_ui(client: Client, username: String) -> Result<(), Box<dyn std::error::Error>> {
     let cli: Cli = Cli {
         tick_rate: 250,
         enhanced_graphics: true,
@@ -42,12 +43,12 @@ pub fn init_ui(client: Client, username: String) -> Result<(), Box<dyn std::erro
     let tick_rate = Duration::from_millis(cli.tick_rate);
     let enhanced_graphics = cli.enhanced_graphics;
 
-    run(tick_rate, enhanced_graphics, client, username)?;
+    run(tick_rate, enhanced_graphics, client, username).await?;
 
     Ok(())
 }
 
-pub fn run(
+pub async fn run(
     tick_rate: Duration,
     enhanced_graphics: bool,
     client: Client,
@@ -89,16 +90,19 @@ pub fn run(
         enhanced_graphics,
         client,
     );
-    run_app(&mut terminal, app, rx)?;
+
+    run_app(&mut terminal, app, rx).await?;
 
     Ok(())
 }
 
-fn run_app<B: Backend>(
+async fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
     mut app: App,
     rx: mpsc::Receiver<Event<KeyEvent>>,
 ) -> Result<(), Box<dyn Error>> {
+    app.refresh_tasks().await;
+
     loop {
         terminal.draw(|f| ui::draw(f, &mut app))?;
 
@@ -108,12 +112,19 @@ fn run_app<B: Backend>(
                     continue;
                 }
                 match event.code {
-                    KeyCode::Char(c) => app.on_key(c),
+                    KeyCode::Char(c) => {
+                        app.on_key(c);
+
+                        if c == 'r' {
+                            app.refresh_tasks().await;
+                        }
+                    },
                     KeyCode::Esc => app.on_esc(),
                     KeyCode::Up => app.on_up(),
                     KeyCode::Down => app.on_down(),
                     KeyCode::Left => app.on_left(),
                     KeyCode::Right => app.on_right(),
+                    KeyCode::Enter => app.on_enter().await,
                     _ => {}
                 }
             }
