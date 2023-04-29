@@ -4,7 +4,7 @@ use crate::SERVER_URL;
 
 #[derive(Debug, serde::Deserialize, Clone)]
 pub struct Task {
-    pub id: u32,
+    pub id: i64,
     pub name: String,
     #[serde(rename = "percentageDone")]
     pub percentage_done: i32,

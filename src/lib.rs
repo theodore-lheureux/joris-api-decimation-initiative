@@ -1,7 +1,7 @@
 use std::{
     error::Error,
     io,
-    sync::mpsc,
+    sync::{mpsc, Arc},
     thread::{self},
     time::{Duration, Instant},
 };
@@ -13,14 +13,15 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen},
 };
 use reqwest::Client;
+use tokio::sync::Mutex;
 use tui::{
     backend::{Backend, CrosstermBackend},
     Terminal,
 };
 
 pub mod app;
-pub mod ui;
 pub mod tasks_loader;
+pub mod ui;
 
 pub const SERVER_URL: &str = "http://localhost:8080/api/";
 
@@ -34,8 +35,14 @@ enum Event<I> {
     Input(I),
     Tick,
 }
+pub enum IoEvent {
+    GetTasks,
+}
 
-pub async fn init_ui(client: Client, username: String) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn init_ui(
+    client: Client,
+    username: String,
+) -> Result<(), Box<dyn std::error::Error>> {
     let cli: Cli = Cli {
         tick_rate: 250,
         enhanced_graphics: true,
@@ -66,7 +73,9 @@ pub async fn run(
                 .unwrap_or_else(|| Duration::from_secs(0));
 
             if event::poll(timeout).expect("poll works") {
-                if let CEvent::Key(key) = event::read().expect("can read events") {
+                if let CEvent::Key(key) =
+                    event::read().expect("can read events")
+                {
                     tx.send(Event::Input(key)).expect("can send events");
                 }
             }
@@ -85,25 +94,38 @@ pub async fn run(
     let mut terminal = Terminal::new(backend)?;
     terminal.clear()?;
 
-    let app = App::new(
+    let app = Arc::new(Mutex::new(App::new(
         "KickMyB Exploit | Signed In as: ".to_owned() + &username,
         enhanced_graphics,
         client,
-    );
+    )));
 
-    run_app(&mut terminal, app, rx).await?;
+    let (ntx, nrx) = mpsc::channel();
+
+    let cloned_app = app.clone();
+    let client = cloned_app.lock().await.client.clone();
+
+    std::thread::spawn(move || {
+        start_network_thread(&cloned_app, nrx, client);
+    });
+
+    ntx.send(IoEvent::GetTasks).unwrap();
+
+    run_app(&mut terminal, app, rx, ntx).await?;
 
     Ok(())
 }
 
 async fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
-    mut app: App,
+    app: Arc<Mutex<App>>,
     rx: mpsc::Receiver<Event<KeyEvent>>,
+    ntx: mpsc::Sender<IoEvent>,
 ) -> Result<(), Box<dyn Error>> {
-    app.refresh_tasks().await;
 
     loop {
+        let mut app = app.lock().await;
+
         terminal.draw(|f| ui::draw(f, &mut app))?;
 
         match rx.recv()? {
@@ -116,9 +138,10 @@ async fn run_app<B: Backend>(
                         app.on_key(c);
 
                         if c == 'r' {
-                            app.refresh_tasks().await;
+                            app.loading = true;
+                            ntx.send(IoEvent::GetTasks).unwrap();
                         }
-                    },
+                    }
                     KeyCode::Esc => app.on_esc(),
                     KeyCode::Up => app.on_up(),
                     KeyCode::Down => app.on_down(),
@@ -139,4 +162,24 @@ async fn run_app<B: Backend>(
     }
 
     Ok(())
+}
+
+#[tokio::main]
+async fn start_network_thread(
+    app: &Arc<Mutex<App>>,
+    rx: std::sync::mpsc::Receiver<IoEvent>,
+    client: Client,
+) {
+    loop {
+        if let Ok(event) = rx.recv() {
+            match event {
+                IoEvent::GetTasks => {
+                    let tasks = tasks_loader::scrape_tasks(2, 5000, &client).await;
+                    let mut app = app.lock().await;
+                    app.loading = false;
+                    app.tasks.items = tasks;
+                }
+            }
+        }
+    }
 }

@@ -198,7 +198,6 @@ where
     f.render_widget(simple, chunks[0]);
 }
 
-/// helper function to create a centered rect using up certain percentage of the available rect `r`
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
