@@ -1,6 +1,6 @@
 use std::{collections::HashMap, env};
 
-use kickmyb_exploit::{init_ui, SERVER_URL};
+use joris_api_decimation_initiative::{init_ui, SERVER_URL};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -13,14 +13,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = &mut env::args();
     let client = reqwest::Client::builder().cookie_store(true).build()?;
 
-    let username = args.skip(1).next().unwrap_or_else(|| {
-        eprintln!("Usage: <username> <password>");
+    let arg_error = || {
+        eprintln!("Usage: joris-api-decimation-initiative <username> <password>");
         std::process::exit(1);
-    });
-    let password = args.next().unwrap_or_else(|| {
-        eprintln!("Usage: <username> <password>");
-        std::process::exit(1);
-    });
+    };
+
+    let username = args.nth(1).unwrap_or_else(arg_error);
+    let password = args.next().unwrap_or_else(arg_error);
 
     let mut map = HashMap::new();
     map.insert("username", username);

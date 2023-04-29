@@ -35,7 +35,6 @@ pub async fn scrape_tasks(lower_limit: u32, upper_limit: u32, client: &Client) -
                 tasks.push(task);
             }
         }
-
     }
     
     tasks

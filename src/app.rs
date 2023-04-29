@@ -1,7 +1,8 @@
-use reqwest::Client;
+use std::sync::mpsc;
+
 use tui::widgets::ListState;
 
-use crate::{tasks_loader::Task, SERVER_URL};
+use crate::{tasks_loader::Task, IoEvent};
 
 pub struct StatefulList<T> {
     pub state: ListState,
@@ -47,7 +48,6 @@ impl<T> StatefulList<T> {
 
 pub struct App {
     pub title: String,
-    pub client: Client,
     pub should_quit: bool,
     pub loading: bool,
     pub tasks: StatefulList<Task>,
@@ -55,20 +55,21 @@ pub struct App {
     pub gauge_value: u16,
     pub enhanced_graphics: bool,
     pub throbber_state: throbber_widgets_tui::ThrobberState,
+    ntx: mpsc::Sender<IoEvent>,
 }
 
 impl App {
-    pub fn new(title: String, enhanced_graphics: bool, client: Client) -> App {
+    pub fn new(title: String, enhanced_graphics: bool, ntx: mpsc::Sender<IoEvent>) -> App {
         App {
             title,
             should_quit: false,
-            client,
             loading: true,
             tasks: StatefulList::with_items(vec![]),
             opened_task: None,
             gauge_value: 50,
             enhanced_graphics,
             throbber_state: throbber_widgets_tui::ThrobberState::default(),
+            ntx
         }
     }
 
@@ -124,18 +125,14 @@ impl App {
 
     pub async fn on_enter(&mut self) {
         if let Some(t) = self.opened_task.as_ref() {
-            let url = format!("{}{}/{}/{}", SERVER_URL, "progress", t.id, self.gauge_value);
 
-            let response = self.client.get(&url).send().await;
+            self.ntx.send(IoEvent::SetTaskProgress {
+                id: t.id,
+                progress: self.gauge_value as u32
+            }).unwrap();
 
-            if let Ok(response) = response {
-                if response.status().as_u16() != 200 {
-                    return;
-                }
-            }
-
-            self.refresh_tasks().await;
             self.opened_task = None;
+            // self.refresh();
             return;
         }
 
@@ -147,19 +144,9 @@ impl App {
         }
     }
 
-    pub async fn refresh_tasks(&mut self) {
-        let selected_index = self.tasks.state.selected().unwrap_or(0);
-
+    pub fn refresh(&mut self) {
         self.loading = true;
-        let tasks = crate::tasks_loader::scrape_tasks(0, 1000, &self.client).await;
-        self.tasks = StatefulList::with_items(tasks);
-        self.loading = false;
-
-        if selected_index >= self.tasks.items.len() {
-            return;
-        }
-        self.tasks.state.select(Some(selected_index));
-
+        self.ntx.send(IoEvent::GetTasks).unwrap();
     }
 
     pub fn on_tick(&mut self) {

@@ -37,6 +37,7 @@ enum Event<I> {
 }
 pub enum IoEvent {
     GetTasks,
+    SetTaskProgress { id: i64, progress: u32 },
 }
 
 pub async fn init_ui(
@@ -94,24 +95,24 @@ pub async fn run(
     let mut terminal = Terminal::new(backend)?;
     terminal.clear()?;
 
+    let (ntx, nrx) = mpsc::channel();
+
     let app = Arc::new(Mutex::new(App::new(
         "KickMyB Exploit | Signed In as: ".to_owned() + &username,
         enhanced_graphics,
-        client,
+        ntx
     )));
 
-    let (ntx, nrx) = mpsc::channel();
 
     let cloned_app = app.clone();
-    let client = cloned_app.lock().await.client.clone();
 
     std::thread::spawn(move || {
         start_network_thread(&cloned_app, nrx, client);
     });
 
-    ntx.send(IoEvent::GetTasks).unwrap();
+    app.lock().await.refresh();
 
-    run_app(&mut terminal, app, rx, ntx).await?;
+    run_app(&mut terminal, app, rx).await?;
 
     Ok(())
 }
@@ -120,7 +121,6 @@ async fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
     app: Arc<Mutex<App>>,
     rx: mpsc::Receiver<Event<KeyEvent>>,
-    ntx: mpsc::Sender<IoEvent>,
 ) -> Result<(), Box<dyn Error>> {
 
     loop {
@@ -138,8 +138,7 @@ async fn run_app<B: Backend>(
                         app.on_key(c);
 
                         if c == 'r' {
-                            app.loading = true;
-                            ntx.send(IoEvent::GetTasks).unwrap();
+                            app.refresh();
                         }
                     }
                     KeyCode::Esc => app.on_esc(),
@@ -178,6 +177,24 @@ async fn start_network_thread(
                     let mut app = app.lock().await;
                     app.loading = false;
                     app.tasks.items = tasks;
+                }
+                IoEvent::SetTaskProgress { id, progress } => {
+                    let url = format!("{}{}/{}/{}", SERVER_URL, "progress", id, progress);
+                    let response = client.get(&url).send().await;
+
+                    if let Ok(response) = response {
+                        let mut app = app.lock().await;
+                        let task = app.tasks.items.iter_mut().find(|t| t.id == id);
+
+                        if let Some(task) = task {
+                            task.percentage_done = progress as i32;
+                        }
+
+                        if response.status().as_u16() != 200 {
+                            app.refresh();
+                            return;
+                        }
+                    }
                 }
             }
         }
