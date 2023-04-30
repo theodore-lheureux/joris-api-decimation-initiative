@@ -1,6 +1,6 @@
 use std::{collections::HashMap, env};
 
-use joris_api_decimation_initiative::{init_ui, SERVER_URL};
+use joris_api_decimation_initiative::{init_ui, API_URL};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -26,14 +26,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     map.insert("password", password);
 
     let mut resp = client
-        .post(SERVER_URL.to_owned() + "id/signin")
+        .post(API_URL.to_owned() + "id/signin")
         .json(&map)
         .send()
         .await?;
     
     if resp.status().as_u16() != 200 {
         resp = client
-        .post(SERVER_URL.to_owned() + "id/signup")
+        .post(API_URL.to_owned() + "id/signup")
         .json(&map)
         .send()
         .await?;

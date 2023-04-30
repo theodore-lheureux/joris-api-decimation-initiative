@@ -23,7 +23,8 @@ pub mod app;
 pub mod tasks_loader;
 pub mod ui;
 
-pub const SERVER_URL: &str = "http://localhost:8080/api/";
+pub const SERVER_URL: &str = "http://localhost:8080";
+pub const API_URL: &str = "http://localhost:8080/api/";
 
 struct Cli {
     tick_rate: u64,
@@ -173,13 +174,13 @@ async fn start_network_thread(
         if let Ok(event) = rx.recv() {
             match event {
                 IoEvent::GetTasks => {
-                    let tasks = tasks_loader::scrape_tasks(2, 5000, &client).await;
+                    let tasks = tasks_loader::scrape_tasks(&client).await;
                     let mut app = app.lock().await;
                     app.loading = false;
                     app.tasks.items = tasks;
                 }
                 IoEvent::SetTaskProgress { id, progress } => {
-                    let url = format!("{}{}/{}/{}", SERVER_URL, "progress", id, progress);
+                    let url = format!("{}{}/{}/{}", API_URL, "progress", id, progress);
                     let response = client.get(&url).send().await;
 
                     if let Ok(response) = response {
