@@ -111,6 +111,35 @@ fn draw_tasks<B>(f: &mut Frame<B>, app: &mut App, area: Rect)
 where
     B: Backend,
 {
+    let longest_task_name = app
+        .tasks
+        .items
+        .iter()
+        .map(|i| i.name.len())
+        .max()
+        .unwrap_or(0);
+    let longest_username = app
+        .tasks
+        .items
+        .iter()
+        .map(|i| i.username.len())
+        .max()
+        .unwrap_or(0);
+    let id_max_length = app
+        .tasks
+        .items
+        .iter()
+        .map(|i| i.id.to_string().len())
+        .max()
+        .unwrap_or(0);
+
+    let labels_width = 43 + id_max_length;
+    let list_width = area.width as usize;
+    let remaining_width = list_width - labels_width;
+
+    let usernam_width = longest_username;
+    let task_name_width = remaining_width - usernam_width;
+
     let tasks: Vec<ListItem> = app
         .tasks
         .items
@@ -119,23 +148,32 @@ where
             let id_label_span =
                 Span::styled(format!("Id: "), Style::default().fg(Color::Blue));
             let id_span = Span::styled(
-                format!("{}", i.id),
+                format!("{:0padding$}", i.id, padding=id_max_length),
                 Style::default().fg(Color::Cyan),
             );
 
             let name_label_span =
                 Span::styled("Name: ", Style::default().fg(Color::Blue));
             let name_span = Span::styled(
-                format!("{}", i.name),
+                format!("{:<width$.width$}", i.name, width=task_name_width),
                 Style::default().fg(Color::Cyan),
             );
 
             let percentage_done_label_span = Span::styled(
-                "Percentage Done: ",
+                "Progress: ",
                 Style::default().fg(Color::Blue),
             );
             let percentage_done_span = Span::styled(
-                format!("{}%", i.percentage_done),
+                format!("{:>2}%", i.percentage_done),
+                Style::default().fg(Color::Cyan),
+            );
+
+            let username_label_span = Span::styled(
+                "Owner: ",
+                Style::default().fg(Color::Blue),
+            );
+            let username_span = Span::styled(
+                format!("{:<width$.width$}", i.username, width=usernam_width),
                 Style::default().fg(Color::Cyan),
             );
 
@@ -146,11 +184,14 @@ where
                 id_label_span,
                 id_span,
                 separator.clone(),
+                percentage_done_label_span,
+                percentage_done_span,
+                separator.clone(),
                 name_label_span,
                 name_span,
                 separator,
-                percentage_done_label_span,
-                percentage_done_span,
+                username_label_span,
+                username_span,
             ]);
 
             ListItem::new(spans)
