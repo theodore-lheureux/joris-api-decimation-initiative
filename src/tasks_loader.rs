@@ -28,7 +28,7 @@ pub async fn count_tasks(client: &Client) -> u32 {
         let divs = html.next().unwrap().last_child().unwrap().children();
 
         let mut count = 0;
-        
+
         for div in divs {
             let tasks = div.children().skip(1).count();
             count += tasks;
@@ -62,7 +62,13 @@ pub async fn find_tasks_username(client: &Client, tasks: &mut Vec<Task>) {
         let html = res.json::<String>().await.unwrap();
         let doc = Document::from(html.as_str());
         let mut html = doc.find(select::predicate::Name("html"));
-        let divs = html.next().unwrap().last_child().unwrap().children().skip(1);
+        let divs = html
+            .next()
+            .unwrap()
+            .last_child()
+            .unwrap()
+            .children()
+            .skip(1);
 
         for div in divs {
             let username = div.first_child().unwrap().text();
@@ -76,11 +82,9 @@ pub async fn find_tasks_username(client: &Client, tasks: &mut Vec<Task>) {
             }
         }
     }
-
 }
 
 pub async fn scrape_tasks(client: &Client) -> Vec<Task> {
-    
     let mut tasks: Vec<Task> = Vec::new();
     let tasks_count = count_tasks(client).await;
     let mut i = 2;
@@ -111,5 +115,4 @@ pub async fn scrape_tasks(client: &Client) -> Vec<Task> {
 
     find_tasks_username(client, &mut tasks).await;
     tasks
-
 }

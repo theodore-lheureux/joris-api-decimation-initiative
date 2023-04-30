@@ -14,7 +14,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = reqwest::Client::builder().cookie_store(true).build()?;
 
     let arg_error = || {
-        eprintln!("Usage: joris-api-decimation-initiative <username> <password>");
+        eprintln!(
+            "Usage: joris-api-decimation-initiative <username> <password>"
+        );
         std::process::exit(1);
     };
 
@@ -30,13 +32,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .json(&map)
         .send()
         .await?;
-    
+
     if resp.status().as_u16() != 200 {
         resp = client
-        .post(API_URL.to_owned() + "id/signup")
-        .json(&map)
-        .send()
-        .await?;
+            .post(API_URL.to_owned() + "id/signup")
+            .json(&map)
+            .send()
+            .await?;
 
         if resp.status().as_u16() != 200 {
             eprintln!("Error: {}", resp.text().await?);

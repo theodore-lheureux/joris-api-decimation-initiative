@@ -59,7 +59,11 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(title: String, enhanced_graphics: bool, ntx: mpsc::Sender<IoEvent>) -> App {
+    pub fn new(
+        title: String,
+        enhanced_graphics: bool,
+        ntx: mpsc::Sender<IoEvent>,
+    ) -> App {
         App {
             title,
             should_quit: false,
@@ -69,7 +73,7 @@ impl App {
             gauge_value: 50,
             enhanced_graphics,
             throbber_state: throbber_widgets_tui::ThrobberState::default(),
-            ntx
+            ntx,
         }
     }
 
@@ -125,11 +129,12 @@ impl App {
 
     pub async fn on_enter(&mut self) {
         if let Some(t) = self.opened_task.as_ref() {
-
-            self.ntx.send(IoEvent::SetTaskProgress {
-                id: t.id,
-                progress: self.gauge_value as u32
-            }).unwrap();
+            self.ntx
+                .send(IoEvent::SetTaskProgress {
+                    id: t.id,
+                    progress: self.gauge_value as u32,
+                })
+                .unwrap();
 
             self.opened_task = None;
             // self.refresh();

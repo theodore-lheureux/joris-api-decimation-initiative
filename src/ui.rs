@@ -1,6 +1,6 @@
 use tui::{
     backend::Backend,
-    layout::{Constraint, Direction, Layout, Rect, Alignment},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
     widgets::{Block, Borders, Clear, Gauge, List, ListItem, Paragraph, Wrap},
@@ -67,7 +67,8 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 .split(area);
             let block = Block::default()
                 .borders(Borders::ALL)
-                .title(format!("Editing task: {} ({})", task.name, task.id)).style(
+                .title(format!("Editing task: {} ({})", task.name, task.id))
+                .style(
                     Style::default()
                         .fg(Color::DarkGray)
                         .add_modifier(Modifier::BOLD),
@@ -77,7 +78,11 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             let label = format!("{}%", app.gauge_value);
             let gauge = Gauge::default()
                 .block(Block::default().title("Percentage Done:"))
-                .style(Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD))
+                .style(
+                    Style::default()
+                        .fg(Color::Blue)
+                        .add_modifier(Modifier::BOLD),
+                )
                 .gauge_style(
                     Style::default()
                         .fg(Color::LightCyan)
@@ -97,9 +102,15 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                         .add_modifier(Modifier::BOLD),
                 ));
             let paragraph =
-                Paragraph::new("Press Enter to save, Esc to cancel").block(block).wrap(Wrap { trim: true }).alignment(Alignment::Center).style(
-                    Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD),
-                );
+                Paragraph::new("Press Enter to save, Esc to cancel")
+                    .block(block)
+                    .wrap(Wrap { trim: true })
+                    .alignment(Alignment::Center)
+                    .style(
+                        Style::default()
+                            .fg(Color::Blue)
+                            .add_modifier(Modifier::BOLD),
+                    );
             f.render_widget(paragraph, chunks[1]);
         }
     } else {
@@ -111,13 +122,6 @@ fn draw_tasks<B>(f: &mut Frame<B>, app: &mut App, area: Rect)
 where
     B: Backend,
 {
-    let longest_task_name = app
-        .tasks
-        .items
-        .iter()
-        .map(|i| i.name.len())
-        .max()
-        .unwrap_or(0);
     let longest_username = app
         .tasks
         .items
@@ -135,10 +139,18 @@ where
 
     let labels_width = 43 + id_max_length;
     let list_width = area.width as usize;
-    let remaining_width = list_width - labels_width;
+    let remaining_width = if list_width > labels_width {
+        list_width - labels_width
+    } else {
+        0
+    };
 
     let usernam_width = longest_username;
-    let task_name_width = remaining_width - usernam_width;
+    let task_name_width = if remaining_width > usernam_width {
+        remaining_width - usernam_width
+    } else {
+        0
+    };
 
     let tasks: Vec<ListItem> = app
         .tasks
@@ -148,32 +160,28 @@ where
             let id_label_span =
                 Span::styled(format!("Id: "), Style::default().fg(Color::Blue));
             let id_span = Span::styled(
-                format!("{:0padding$}", i.id, padding=id_max_length),
+                format!("{:0padding$}", i.id, padding = id_max_length),
                 Style::default().fg(Color::Cyan),
             );
 
             let name_label_span =
                 Span::styled("Name: ", Style::default().fg(Color::Blue));
             let name_span = Span::styled(
-                format!("{:<width$.width$}", i.name, width=task_name_width),
+                format!("{:<width$.width$}", i.name, width = task_name_width),
                 Style::default().fg(Color::Cyan),
             );
 
-            let percentage_done_label_span = Span::styled(
-                "Progress: ",
-                Style::default().fg(Color::Blue),
-            );
+            let percentage_done_label_span =
+                Span::styled("Progress: ", Style::default().fg(Color::Blue));
             let percentage_done_span = Span::styled(
                 format!("{:>2}%", i.percentage_done),
                 Style::default().fg(Color::Cyan),
             );
 
-            let username_label_span = Span::styled(
-                "Owner: ",
-                Style::default().fg(Color::Blue),
-            );
+            let username_label_span =
+                Span::styled("Owner: ", Style::default().fg(Color::Blue));
             let username_span = Span::styled(
-                format!("{:<width$.width$}", i.username, width=usernam_width),
+                format!("{:<width$.width$}", i.username, width = usernam_width),
                 Style::default().fg(Color::Cyan),
             );
 

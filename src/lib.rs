@@ -101,9 +101,8 @@ pub async fn run(
     let app = Arc::new(Mutex::new(App::new(
         "KickMyB Exploit | Signed In as: ".to_owned() + &username,
         enhanced_graphics,
-        ntx
+        ntx,
     )));
-
 
     let cloned_app = app.clone();
 
@@ -123,7 +122,6 @@ async fn run_app<B: Backend>(
     app: Arc<Mutex<App>>,
     rx: mpsc::Receiver<Event<KeyEvent>>,
 ) -> Result<(), Box<dyn Error>> {
-
     loop {
         let mut app = app.lock().await;
 
@@ -180,12 +178,16 @@ async fn start_network_thread(
                     app.tasks.items = tasks;
                 }
                 IoEvent::SetTaskProgress { id, progress } => {
-                    let url = format!("{}{}/{}/{}", API_URL, "progress", id, progress);
+                    let url = format!(
+                        "{}{}/{}/{}",
+                        API_URL, "progress", id, progress
+                    );
                     let response = client.get(&url).send().await;
 
                     if let Ok(response) = response {
                         let mut app = app.lock().await;
-                        let task = app.tasks.items.iter_mut().find(|t| t.id == id);
+                        let task =
+                            app.tasks.items.iter_mut().find(|t| t.id == id);
 
                         if let Some(task) = task {
                             task.percentage_done = progress as i32;
