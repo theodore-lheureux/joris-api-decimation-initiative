@@ -1,6 +1,6 @@
 use std::{collections::HashMap, env};
 
-use joris_api_decimation_initiative::{init_ui, API_URL};
+use japi::{init_ui, API_URL};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]

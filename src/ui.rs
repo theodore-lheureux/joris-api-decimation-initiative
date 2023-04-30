@@ -122,20 +122,26 @@ fn draw_tasks<B>(f: &mut Frame<B>, app: &mut App, area: Rect)
 where
     B: Backend,
 {
-    let longest_username = app
-        .tasks
-        .items
-        .iter()
-        .map(|i| i.username.len())
-        .max()
-        .unwrap_or(0);
-    let id_max_length = app
-        .tasks
-        .items
-        .iter()
-        .map(|i| i.id.to_string().len())
-        .max()
-        .unwrap_or(0);
+    let (longest_username, id_max_length) =
+        app.tasks.items.iter().fold((0, 0), |acc, i| {
+            (
+                if i.username.len() > acc.0 {
+                    i.username.len()
+                } else {
+                    acc.0
+                },
+                if i.id.to_string().len() > acc.1 {
+                    i.id.to_string().len()
+                } else {
+                    acc.1
+                },
+            )
+        });
+    let longest_username = if longest_username > 30 {
+        30
+    } else {
+        longest_username
+    };
 
     let labels_width = 43 + id_max_length;
     let list_width = area.width as usize;
