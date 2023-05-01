@@ -49,15 +49,22 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                         .fg(Color::DarkGray)
                         .add_modifier(Modifier::BOLD),
                 );
-            let area = centered_rect(60, 20, size);
+
+            let y = if f.size().height < 47 {
+                35
+            } else {
+                22
+            };
+            
+            let area = centered_rect(60, y, size);
             f.render_widget(Clear, area);
             f.render_widget(block, area);
 
-            // add gauge in the middle of the popup
             let chunks = Layout::default()
                 .constraints(
                     [
                         Constraint::Length(2),
+                        Constraint::Length(1),
                         Constraint::Length(3),
                         Constraint::Length(1),
                     ]
@@ -93,7 +100,6 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 .ratio(app.gauge_value as f64 / 100.0);
             f.render_widget(gauge, chunks[0]);
 
-            // add press Enter to save label
             let block =
                 Block::default().borders(Borders::ALL).title(Span::styled(
                     "",
@@ -111,7 +117,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                             .fg(Color::Blue)
                             .add_modifier(Modifier::BOLD),
                     );
-            f.render_widget(paragraph, chunks[1]);
+            f.render_widget(paragraph, chunks[2]);
         }
     } else {
         draw_loading(f, chunks[0]);

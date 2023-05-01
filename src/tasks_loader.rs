@@ -1,9 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
+use futures::{stream, StreamExt};
 use reqwest::Client;
 use select::document::Document;
 
 use crate::{API_URL, SERVER_URL};
+
+const CONCURRENT_REQUESTS: usize = 15;
 
 #[derive(Debug, serde::Deserialize, Clone)]
 pub struct Task {
@@ -90,27 +93,28 @@ pub async fn scrape_tasks(client: &Client) -> Vec<Task> {
     let mut i = 2;
 
     while tasks.len() < tasks_count as usize {
-        let url = format!("{}{}{}", API_URL, "detail/", i);
+        // send 10 requests at a time
+        let mut requests = Vec::new();
+        for j in i..i + CONCURRENT_REQUESTS {
+            requests.push(client.get(format!("{}detail/{}", API_URL, j)));
+        }
 
-        let response = client.get(&url).send().await;
+        let mut responses = stream::iter(requests)
+            .map(|req| req.send())
+            .buffer_unordered(CONCURRENT_REQUESTS);
 
-        if let Ok(response) = response {
-            if response.status().as_u16() != 200 {
-                i += 1;
-                continue;
-            }
-
-            let task = response.json::<Task>().await;
-            if let Ok(mut task) = task {
-                if task.percentage_done > 100 {
-                    task.percentage_done = 100;
-                } else if task.percentage_done < 0 {
-                    task.percentage_done = 0;
+        while let Some(res) = responses.next().await {
+            if let Ok(res) = res {
+                if res.status().as_u16() != 200 {
+                    continue;
                 }
+                let task = res.json::<Task>().await.unwrap();
                 tasks.push(task);
             }
         }
-        i += 1;
+
+        i += CONCURRENT_REQUESTS;
+
     }
 
     find_tasks_username(client, &mut tasks).await;
