@@ -23,8 +23,8 @@ pub mod app;
 pub mod tasks_loader;
 pub mod ui;
 
-pub const SERVER_URL: &str = "http://localhost:8080";
-pub const API_URL: &str = "http://localhost:8080/api/";
+pub const SERVER_URL: &str = "http://10.10.70.25:8080";
+pub const API_URL: &str = "http://10.10.70.25:8080/api/";
 
 struct Cli {
     tick_rate: u64,
